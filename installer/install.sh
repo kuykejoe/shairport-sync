@@ -103,7 +103,7 @@ COMMON_PKGS=(
     build-essential git autoconf automake libtool pkg-config
     libpopt-dev libconfig-dev libssl-dev libsoxr-dev
     libavahi-client-dev avahi-daemon
-    libplist-dev libsodium-dev uuid-dev libgcrypt-dev
+    libplist-dev libplist-utils libsodium-dev uuid-dev libgcrypt-dev
     libavutil-dev libavcodec-dev libavformat-dev
     xxd xmltoman
 )
