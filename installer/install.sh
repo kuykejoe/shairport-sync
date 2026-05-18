@@ -28,6 +28,9 @@ step()    { echo -e "\n${BOLD}${GREEN}==> $*${NC}"; }
 # ---------------------------------------------------------------------------
 # Defaults / Argument parsing
 # ---------------------------------------------------------------------------
+# Resolve script location before any cd commands change the working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 AIRPLAY_NAME="$(hostname)"
 AUDIO_OUTPUT="alsa"
 SPS_REPO_URL="https://github.com/kuykejoe/shairport-sync.git"
@@ -140,7 +143,6 @@ step "3/6  Building shairport-sync with AirPlay 2 support"
 
 # Resolve source: use the repo this script lives in (if available),
 # otherwise clone the fork fresh.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPS_ROOT="$(dirname "$SCRIPT_DIR")"
 
 if [[ -f "$SPS_ROOT/configure.ac" ]]; then
