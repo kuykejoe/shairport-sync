@@ -76,6 +76,14 @@ else
     DISTRO="unknown"
 fi
 
+# systemd availability (absent in containers / CI)
+if [[ -d /run/systemd/system ]]; then
+    HAVE_SYSTEMD=1
+else
+    HAVE_SYSTEMD=0
+    warn "systemd is not running - services will be installed but not enabled or started."
+fi
+
 # Validate audio output
 case "$AUDIO_OUTPUT" in
     alsa|pulseaudio|pipewire) ;;
@@ -181,10 +189,14 @@ success "shairport-sync installed."
 # Step 4 – Enable & start nqptp service
 # ---------------------------------------------------------------------------
 step "4/6  Enabling nqptp service"
-systemctl daemon-reload
-systemctl enable nqptp
-systemctl restart nqptp
-success "nqptp service running."
+if (( HAVE_SYSTEMD )); then
+    systemctl daemon-reload
+    systemctl enable nqptp
+    systemctl restart nqptp
+    success "nqptp service running."
+else
+    warn "Skipped: systemd not running."
+fi
 
 # ---------------------------------------------------------------------------
 # Step 5 – Write a baseline shairport-sync config
@@ -225,17 +237,21 @@ success "Config written to $CONFIG_FILE"
 # Step 6 – Enable & start shairport-sync service
 # ---------------------------------------------------------------------------
 step "6/6  Enabling shairport-sync service"
-systemctl daemon-reload
-systemctl enable shairport-sync
-systemctl restart shairport-sync
+if (( HAVE_SYSTEMD )); then
+    systemctl daemon-reload
+    systemctl enable shairport-sync
+    systemctl restart shairport-sync
 
-# Give it a moment to start
-sleep 2
+    # Give it a moment to start
+    sleep 2
 
-if systemctl is-active --quiet shairport-sync; then
-    success "shairport-sync is running!"
+    if systemctl is-active --quiet shairport-sync; then
+        success "shairport-sync is running!"
+    else
+        warn "shairport-sync did not start cleanly. Check: journalctl -u shairport-sync -n 30"
+    fi
 else
-    warn "shairport-sync did not start cleanly. Check: journalctl -u shairport-sync -n 30"
+    warn "Skipped: systemd not running. Start manually with: nqptp & shairport-sync"
 fi
 
 # ---------------------------------------------------------------------------
