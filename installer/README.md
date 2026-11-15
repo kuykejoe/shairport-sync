@@ -8,7 +8,7 @@ One-shot installer for **shairport-sync with AirPlay 2 (AP2) and multi-room supp
 2. Builds and installs [nqptp](https://github.com/mikebrady/nqptp) — the AirPlay 2 timing daemon
 3. Builds shairport-sync from source with `--with-airplay-2`
 4. Writes a baseline `/etc/shairport-sync.conf`
-5. Enables and starts both `nqptp` and `shairport-sync` as systemd services
+5. Enables and starts `nqptp` as a system service. `shairport-sync` is a system service for `alsa`; for `pulseaudio`/`pipewire` it is installed as a systemd **user** service for the invoking (`sudo`) user, since those sound servers are per-user. It then runs while that user is logged in (enable auto-login for unattended use).
 
 ## Requirements
 
@@ -51,15 +51,18 @@ sudo bash installer/install.sh --output pulseaudio
 
 ```bash
 # Check service status
-systemctl status shairport-sync
+systemctl status shairport-sync          # alsa (system service)
+systemctl --user status shairport-sync   # pulseaudio / pipewire (user service)
 systemctl status nqptp
 
 # Follow live logs
-journalctl -u shairport-sync -f
+journalctl -u shairport-sync -f          # alsa
+journalctl --user -u shairport-sync -f   # pulseaudio / pipewire
 
 # Edit config
 sudo nano /etc/shairport-sync.conf
-sudo systemctl restart shairport-sync
+sudo systemctl restart shairport-sync          # alsa
+systemctl --user restart shairport-sync        # pulseaudio / pipewire
 ```
 
 The receiver name set during install appears in the AirPlay menu on iOS/macOS. Open **Music → AirPlay** or swipe up on Control Center to find it.

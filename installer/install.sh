@@ -237,7 +237,68 @@ success "Config written to $CONFIG_FILE"
 # Step 6 – Enable & start shairport-sync service
 # ---------------------------------------------------------------------------
 step "6/6  Enabling shairport-sync service"
-if (( HAVE_SYSTEMD )); then
+
+# PulseAudio/PipeWire are per-user services, so shairport-sync must run as a
+# systemd *user* service for the desktop user. alsa uses a system service.
+install_user_service() {
+    local user="${SUDO_USER:-}" uid group home unit_dir unit_file requires="" after="" run_as
+    if [[ -z "$user" || "$user" == "root" ]]; then
+        warn "Run this installer with sudo from your desktop user (not as root) to set up the user service."
+        warn "Or, as your desktop user, from the repo root: sh user-service-install.sh"
+        return
+    fi
+    uid="$(id -u "$user")"
+    group="$(id -gn "$user")"
+    home="$(getent passwd "$user" | cut -d: -f6)"
+    unit_dir="$home/.config/systemd/user"
+    unit_file="$unit_dir/shairport-sync.service"
+
+    # A system service would conflict (and cannot reach the user's sound server)
+    systemctl disable --now shairport-sync 2>/dev/null || true
+
+    case "$AUDIO_OUTPUT" in
+        pulseaudio) requires="Requires=pulseaudio.service"; after="After=pulseaudio.service" ;;
+        pipewire)   requires="Requires=pipewire.service";   after="After=pipewire.service" ;;
+    esac
+
+    install -d -o "$user" -g "$group" "$unit_dir"
+    cat > "$unit_file" << UNIT
+[Unit]
+Description=Shairport Sync - AirPlay Audio Receiver
+After=sound.target
+${requires}
+${after}
+
+[Service]
+ExecStart=/usr/local/bin/shairport-sync --log-to-syslog -o ${AUDIO_OUTPUT}
+
+[Install]
+WantedBy=default.target
+UNIT
+    chown "$user:$group" "$unit_file"
+    success "User service written to $unit_file"
+
+    if [[ ! -S "/run/user/$uid/bus" ]]; then
+        warn "No active login session for '$user' - cannot start the user service now."
+        warn "Log in as '$user', then run: systemctl --user enable --now shairport-sync"
+        return
+    fi
+    run_as=(sudo -u "$user" env "XDG_RUNTIME_DIR=/run/user/$uid" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus")
+    "${run_as[@]}" systemctl --user daemon-reload
+    "${run_as[@]}" systemctl --user enable shairport-sync
+    "${run_as[@]}" systemctl --user restart shairport-sync
+    sleep 2
+    if "${run_as[@]}" systemctl --user is-active --quiet shairport-sync; then
+        success "shairport-sync user service is running!"
+    else
+        warn "User service did not start cleanly. Check: journalctl --user -u shairport-sync -n 30"
+    fi
+    info "It runs while '$user' is logged in (enable auto-login for unattended use)."
+}
+
+if (( ! HAVE_SYSTEMD )); then
+    warn "Skipped: systemd not running. Start manually with: nqptp & shairport-sync"
+elif [[ "$AUDIO_OUTPUT" == "alsa" ]]; then
     systemctl daemon-reload
     systemctl enable shairport-sync
     systemctl restart shairport-sync
@@ -251,7 +312,7 @@ if (( HAVE_SYSTEMD )); then
         warn "shairport-sync did not start cleanly. Check: journalctl -u shairport-sync -n 30"
     fi
 else
-    warn "Skipped: systemd not running. Start manually with: nqptp & shairport-sync"
+    install_user_service
 fi
 
 # ---------------------------------------------------------------------------
@@ -262,8 +323,13 @@ echo ""
 echo -e "  AirPlay receiver name : ${BOLD}${AIRPLAY_NAME}${NC}"
 echo -e "  Audio output          : ${BOLD}${AUDIO_OUTPUT}${NC}"
 echo -e "  Config file           : ${BOLD}${CONFIG_FILE}${NC}"
-echo -e "  Service status        : ${BOLD}systemctl status shairport-sync${NC}"
-echo -e "  Logs                  : ${BOLD}journalctl -u shairport-sync -f${NC}"
+if [[ "$AUDIO_OUTPUT" == "alsa" ]]; then
+    echo -e "  Service status        : ${BOLD}systemctl status shairport-sync${NC}"
+    echo -e "  Logs                  : ${BOLD}journalctl -u shairport-sync -f${NC}"
+else
+    echo -e "  Service status        : ${BOLD}systemctl --user status shairport-sync${NC}"
+    echo -e "  Logs                  : ${BOLD}journalctl --user -u shairport-sync -f${NC}"
+fi
 echo ""
 echo "  Open Music / AirPlay on an Apple device — '${AIRPLAY_NAME}' should appear."
 echo ""
