@@ -175,8 +175,8 @@ CONFIGURE_FLAGS=(
 
 case "$AUDIO_OUTPUT" in
     alsa)       CONFIGURE_FLAGS+=(--with-alsa) ;;
-    pulseaudio) CONFIGURE_FLAGS+=(--with-pa) ;;
-    pipewire)   CONFIGURE_FLAGS+=(--with-pw) ;;
+    pulseaudio) CONFIGURE_FLAGS+=(--with-pulseaudio) ;;
+    pipewire)   CONFIGURE_FLAGS+=(--with-pipewire) ;;
 esac
 
 autoreconf -fi
